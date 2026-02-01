@@ -4,7 +4,7 @@ from tabla_simbolos import SymbolTable
 
 # palabras reservadas para que el lexer las reconozca 
 KEYWORDS = {
-    "public","class","static","final","private","String","double","int","void",
+    "package","import","public","class","static","final","private","String","double","int","void",
     "return","if","else","new","this"
 }
 # separadores
