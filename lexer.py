@@ -11,6 +11,8 @@ KEYWORDS = {
 DELIMITERS = set("{}()[];,.")
 # operadores
 OPERATORS = set("=+-*/<>!")
+OPERATORS_2 = {"<=", ">=", "==", "!=", "&&", "||", "++", "--"}
+
 
 class Lexer:
     def __init__(self, text: str):
@@ -81,8 +83,102 @@ class Lexer:
         sym_id = self.symtab.get_or_insert(lex, "IDENTIFIER", line0)
         return Token(TokenType.IDENTIFIER, lex, line0, col0, attr=f"symId={sym_id}")
 
-    def scan_symbol(self):
+    def scan_number(self):
+        """
+        Lee un literal numérico (INT o FLOAT).
+        Regla simple:
+        - dígitos obligatorios
+        - si hay '.' solo cuenta como float si viene otro dígito después
+        """
         line0, col0 = self.line, self.col
+        lex = ""
+
+        # parte entera
+        while self.peek().isdigit():
+            lex += self.advance()
+
+        # parte decimal (float)
+        if self.peek() == "." and self.peek(1).isdigit():
+            lex += self.advance()  # consume '.'
+            while self.peek().isdigit():
+                lex += self.advance()
+            return Token(TokenType.FLOAT_LIT, lex, line0, col0, attr=f"float={lex}")
+
+        return Token(TokenType.INT_LIT, lex, line0, col0, attr=f"int={lex}")
+    def scan_string(self):
+        """
+        Lee un STRING literal entre comillas dobles " ... "
+        Si llega fin de línea o EOF sin cerrar, devuelve ERROR.
+        """
+        line0, col0 = self.line, self.col
+        lex = ""
+
+        # consumir comilla inicial
+        lex += self.advance()  # "
+
+        while True:
+            ch = self.peek()
+
+            if ch == "\0" or ch == "\n":
+                # string sin cerrar
+                return Token(TokenType.ERROR, lex, line0, col0, attr="unterminated_string")
+
+            if ch == '"':
+                lex += self.advance()  # consumir comilla final
+                break
+
+            # soporta escapes simples \" o \\ (opcional, pero útil)
+            if ch == "\\" and self.peek(1) != "\0":
+                lex += self.advance()
+                lex += self.advance()
+            else:
+                lex += self.advance()
+
+        return Token(TokenType.STRING_LIT, lex, line0, col0, attr=f"string={lex}")
+    def scan_comment(self):
+        """
+        Maneja comentarios:
+        - // hasta fin de línea
+        - /* ... */ bloque
+        """
+        line0, col0 = self.line, self.col
+
+        # Line comment //
+        if self.peek() == "/" and self.peek(1) == "/":
+            lex = self.advance() + self.advance()  # consume //
+            while self.peek() not in ("\n", "\0"):
+                lex += self.advance()
+            return Token(TokenType.COMMENT, lex, line0, col0)
+
+        # Block comment /* */
+        if self.peek() == "/" and self.peek(1) == "*":
+            lex = self.advance() + self.advance()  # consume /*
+            while True:
+                if self.peek() == "\0":
+                    return Token(TokenType.ERROR, lex, line0, col0, attr="unterminated_comment")
+                if self.peek() == "*" and self.peek(1) == "/":
+                    lex += self.advance() + self.advance()  # consume */
+                    break
+                lex += self.advance()
+            return Token(TokenType.COMMENT, lex, line0, col0)
+
+        # Si no era comentario, error (no debería llamarse aquí)
+        bad = self.advance()
+        return Token(TokenType.ERROR, bad, line0, col0, attr="invalid_comment_start")
+
+    def scan_symbol(self):
+        """
+        Manejo de delimitadores y operadores.
+        IMPORTANTE: primero intenta operadores de 2 caracteres (<=, >=, ==, !=, etc.)
+        """
+        line0, col0 = self.line, self.col
+
+        two = self.peek() + self.peek(1)
+        if two in OPERATORS_2:
+            self.advance()
+            self.advance()
+            return Token(TokenType.OPERATOR, two, line0, col0)
+
         ch = self.peek()
 
         if ch in DELIMITERS:
@@ -91,22 +187,40 @@ class Lexer:
         if ch in OPERATORS:
             return Token(TokenType.OPERATOR, self.advance(), line0, col0)
 
-        # si no reconocemos el caracter
         bad = self.advance()
         return Token(TokenType.ERROR, bad, line0, col0, attr="invalid_char")
 
     def tokenize(self):
+        """
+        Loop principal del lexer
+        repite hasta el fin del archivo EOF
+        salta whitespaces
+        decide el tipo de token a escanear
+        agrega el token a la lista
+        """
         tokens = []
         while True:
             self.skip_whitespace()
-
+            # verificación de fin de archivo EOF
             if self.peek() == "\0":
                 tokens.append(Token(TokenType.EOF, "", self.line, self.col))
                 break
-
+            # que scaner utilizar 
             ch = self.peek()
+
+            # comentarios
+            if ch == "/" and self.peek(1) in ("/", "*"):
+                self.scan_comment()
+                continue
+
+            # identificador o palabra reservada
             if ch.isalpha() or ch in ("_", "$"):
                 tokens.append(self.scan_identifier_or_keyword())
+            elif ch.isdigit():
+                tokens.append(self.scan_number())
+            elif ch == '"':
+                tokens.append(self.scan_string())
+            
             else:
                 tokens.append(self.scan_symbol())
 
