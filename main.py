@@ -1,13 +1,31 @@
 
-from lexer import Lexer
+"""
+Elección de lexemas en el código:
+Identificadores:
+- System
+- main
+- args
+- println
+- PotionBrewer
+- MUSHROOM_PRICE
+    regex: [A-Za-z_]+
+    
+[A-Za-z_][A-Za-z0-9_]*
 
-with open("PotionBrewer.java", "r", encoding="utf-8") as f:
-    code = f.read()
 
-lx = Lexer(code)
-tokens = lx.tokenize()
+Literales numéricos:
+- 5.50
+- 3
+- 0
+- 100.0
+- 2 
+- 4
+    regex: [0-9]+\.[0-9]+
 
-for t in tokens[:30]:  # imprime los primeros 30
-    print(t)
 
-lx.symtab.print_table()
+Operadores / delimitadores
+Operadores: =, +, -, *, <=, -=, ++
+Delimitadores: { } ( ) [ ] ; , .
+    regex: [=+\-*/<>!]+ | [\{\}\(\)\[\];,\.]
+
+"""
