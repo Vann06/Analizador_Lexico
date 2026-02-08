@@ -9,7 +9,7 @@ Identificadores:
 - PotionBrewer
 - MUSHROOM_PRICE
     regex: [A-Za-z_]+
-    
+regex completo para java
 [A-Za-z_][A-Za-z0-9_]*
 
 
@@ -27,5 +27,13 @@ Operadores / delimitadores
 Operadores: =, +, -, *, <=, -=, ++
 Delimitadores: { } ( ) [ ] ; , .
     regex: [=+\-*/<>!]+ | [\{\}\(\)\[\];,\.]
+
+Para generar un AFD a partir de las expresiones regulares para 
+identificadores, voy a utilizar un enfoque dividido en clases
+L = [A-Za-z_]
+A = [A-Za-z0-9_]
+entonces simplificado queda como: L A*
+y para su construccion correcta queda como L A* # 
+
 
 """
