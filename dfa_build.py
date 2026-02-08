@@ -1,14 +1,12 @@
 """Construcción directa del AFD para identificadores Java.
 
 En este archivo quiero conectar varias piezas:
-  - El árbol de sintaxis EXPANDIDO del regex de identificadores
+  - El árbol de sintaxis 
 	(build_java_identifier_tree_expanded de build_regex.py).
   - Las funciones directas: nullable, firstpos, lastpos, followpos
 	(de direct_functions.py).
   - La construcción del AFD usando conjuntos de posiciones.
 
-La idea es que todo quede en modo "estoy aprendiendo":
-imprimo cosas en consola y veo cómo se va armando todo.
 """
 
 from dataclasses import dataclass
@@ -60,6 +58,27 @@ def collect_leaves(node: Node, leaves: Dict[int, Leaf]) -> None:
 		collect_leaves(right, leaves)
 
 
+def collect_nodes(root: Node) -> List[Node]:
+	# Recolecta *todos* los nodos del árbol.
+
+	visitados: Set[int] = set()
+	nodos: List[Node] = []
+
+	def _dfs(n: Node) -> None:
+		if id(n) in visitados:
+			return
+		visitados.add(id(n))
+		nodos.append(n)
+
+		for attr in ("child", "left", "right"):
+			child = getattr(n, attr, None)
+			if child is not None:
+				_dfs(child)
+
+	_dfs(root)
+	return nodos
+
+
 def build_dfa_from_tree(root: Node) -> DFA:
 	"""Aplica la construcción directa para obtener el AFD.
 
@@ -82,20 +101,50 @@ def build_dfa_from_tree(root: Node) -> DFA:
 	# Llamo a la función que ya programé para llenar followpos_dict
 	compute_followpos(root, followpos_dict)
 
-	# ---- Impresión de tablas para el reporte ----
-	print("\n==== Tabla de hojas (posición -> símbolo) ====")
-	for pos in sorted(leaves.keys()):
-		leaf = leaves[pos]
-		print(f"pos {pos:3d} -> '{leaf.symbol}'")
+	# ---- TABLA 1: todos los nodos con nullable / firstpos / lastpos ----
+	print("\n============== TABLA DE NODOS (FUNCIONES DIRECTAS) ==============")
+	print(f"{'Id':>3} | {'Tipo':^8} | {'Pos':^5} | {'Símbolo':^10} | {'nullable':^8} | {'firstpos':^12} | {'lastpos':^12}")
+	print("-" * 80)
 
-	print("\n==== Valores globales de nullable / firstpos / lastpos para la raíz ====")
-	print(f"nullable(root) = {nullable(root)}")
-	print(f"firstpos(root) = {sorted(firstpos(root))}")
-	print(f"lastpos(root)  = {sorted(lastpos(root))}")
+	nodos = collect_nodes(root)
+	for idx, n in enumerate(nodos, start=1):
+		# Tipo de nodo
+		if isinstance(n, Leaf):
+			tipo = "Leaf"
+			pos_str = str(n.position)
+			sym_str = n.symbol
+		else:
+			from syntax_tree import Concat, Union, Star
+			if isinstance(n, Concat):
+				tipo = "Concat"
+			elif isinstance(n, Union):
+				tipo = "Union"
+			elif isinstance(n, Star):
+				tipo = "Star"
+			else:
+				tipo = "Nodo?"
+			pos_str = "-"
+			sym_str = "-"
 
-	print("\n==== Tabla de followpos(i) para cada posición i ====")
+		nullable_n = nullable(n)
+		first_n = sorted(firstpos(n))
+		last_n = sorted(lastpos(n))
+
+		print(f"{idx:3d} | {tipo:^8} | {pos_str:^5} | {sym_str:^10} | {str(nullable_n):^8} | {str(first_n):^12} | {str(last_n):^12}")
+
+	print("\n========== RESUMEN PARA LA RAÍZ DEL ÁRBOL ==========")
+	print(f"nullable(root)    = {nullable(root)}")
+	print(f"firstpos(root)    = {sorted(firstpos(root))}")
+	print(f"lastpos(root)     = {sorted(lastpos(root))}")
+
+	# ---- TABLA 2: solo followpos(i), separada para que se lea mejor ----
+	print("\nLeaf\tSymbol\tFollow Pos")
 	for pos in sorted(followpos_dict.keys()):
-		print(f"followpos({pos}) = {sorted(followpos_dict[pos])}")
+		leaf = leaves[pos]
+		follow = sorted(followpos_dict[pos])
+		# Imprimo la lista como "54, 55, 56, ..." sin corchetes
+		follow_str = ", ".join(str(i) for i in follow)
+		print(f"{pos}\t{leaf.symbol}\t{follow_str}")
 
 	# También necesito saber cuál posición es el símbolo # (fin de cadena)
 	end_pos = None
@@ -147,16 +196,46 @@ def build_dfa_from_tree(root: Node) -> DFA:
 		if end_pos in S:
 			accepts.add(S)
 
+	# ---- TABLA 3: tabla de transición de estados del AFD ----
+	print("\nTransitions Table")
+
+	# Orden fijo del alfabeto para las columnas: A-Z, a-z, _, 0-9
+	letters_upper = [chr(c) for c in range(ord('A'), ord('Z') + 1)]
+	letters_lower = [chr(c) for c in range(ord('a'), ord('z') + 1)]
+	digits = [str(d) for d in range(10)]
+	ordered_alphabet = [
+		*letters_upper,
+		*letters_lower,
+		'_',
+		*digits,
+	]
+
+	# Filtro solo los símbolos que realmente están en el alfabeto del DFA
+	ordered_alphabet = [a for a in ordered_alphabet if a in alphabet]
+
+	print("States\t" + "\t".join(ordered_alphabet))
+
+	# Asigno nombres S0, S1, ... a los estados, empezando por el inicial
+	ordered_states = sorted(states, key=lambda s: (s != start_set, sorted(s)))
+	state_names: Dict[FrozenSet[int], str] = {}
+	for idx, st in enumerate(ordered_states):
+		state_names[st] = f"S{idx}"
+
+	for st in ordered_states:
+		name = state_names[st]
+		# Marco con * si es estado de aceptación
+		name_prefixed = f"*{name}" if st in accepts else name
+		row = [f"{name_prefixed} = {sorted(st)}"]
+		for a in ordered_alphabet:
+			dest = transitions.get((st, a), frozenset())
+			row.append(state_names.get(dest, "-"))
+		print("\t".join(row))
+
 	return DFA(states=states, alphabet=alphabet, start=start_set,
 			   accepts=accepts, transitions=transitions)
 
 
 def simulate_dfa(dfa: DFA, word: str) -> None:
-	"""Simula el AFD sobre una palabra y muestra el recorrido.
-
-	Ojo: aquí estoy asumiendo que cada carácter de `word` es
-	un símbolo del alfabeto (letra, dígito o '_').
-	"""
 
 	current = dfa.start
 	print(f"Estado inicial: {sorted(current)}")
@@ -191,13 +270,6 @@ if __name__ == "__main__":
 	print("Estados de aceptación (con posición de #):", [sorted(s) for s in dfa.accepts])
 
 	# 3) Pruebo el AFD con un identificador que aparece en el código Java
-	#    Por ejemplo: "PotionBrewer"
 	print("\n=== Simulación con la palabra 'PotionBrewer' ===")
 	simulate_dfa(dfa, "PotionBrewer")
-
-	# Aquí ya tengo lo necesario para el reporte:
-	# - El árbol sintáctico (PNG lo genero con render_tree.py).
-	# - Las posiciones de las hojas (de build_regex/colección de hojas).
-	# - followpos (se calculó dentro de build_dfa_from_tree).
-	# - El AFD y una simulación paso a paso.
 

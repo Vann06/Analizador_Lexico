@@ -18,17 +18,6 @@ from dfa_build import DFA
 
 @dataclass
 class MinimizedDFA:
-	"""AFD minimizado.
-
-	new_states: bloques de estados originales (cada bloque es un frozenset
-				de estados-originales, y cada estado-original es a su vez
-				un frozenset de posiciones).
-	start: bloque que contiene al estado inicial original.
-	accepts: bloques que contienen al menos un estado final original.
-	transitions: función de transición sobre bloques.
-	alphabet: el mismo alfabeto del AFD original.
-	"""
-
 	new_states: Set[FrozenSet[FrozenSet[int]]]
 	alphabet: Set[str]
 	start: FrozenSet[FrozenSet[int]]
@@ -37,17 +26,9 @@ class MinimizedDFA:
 
 
 def minimize_dfa(dfa: DFA) -> MinimizedDFA:
-	"""Aplica el algoritmo de partición de estados.
-
-	Nota: aquí cada estado del dfa es un frozenset de posiciones.
-	Yo voy a agrupar esos estados en bloques (también frozensets).
-	"""
-
-	# Si no hay estados, no hay mucho que hacer
 	if not dfa.states:
 		raise ValueError("El AFD no tiene estados")
 
-	# Bloque de estados finales y bloque de no finales
 	finals = set(dfa.accepts)
 	non_finals = set(s for s in dfa.states if s not in finals)
 
@@ -62,7 +43,6 @@ def minimize_dfa(dfa: DFA) -> MinimizedDFA:
 		for idx, block in enumerate(partition):
 			if state in block:
 				return idx
-		# No debería pasar
 		return -1
 
 	changed = True
@@ -103,7 +83,6 @@ def minimize_dfa(dfa: DFA) -> MinimizedDFA:
 	for block in partition:
 		new_states.add(frozenset(block))
 
-	# Estado inicial minimizado: bloque que contiene al estado inicial original
 	start_block = None
 	for block in new_states:
 		if dfa.start in block:
@@ -124,12 +103,9 @@ def minimize_dfa(dfa: DFA) -> MinimizedDFA:
 
 	# Para cada bloque y cada símbolo veo a qué bloque voy
 	for block in new_states:
-		# Elijo un representante cualquiera del bloque, porque
-		# todos los estados de ese bloque son equivalentes.
 		rep = next(iter(block))
 		for a in dfa.alphabet:
 			dest = dfa.transitions.get((rep, a), frozenset())
-			# Busco el bloque al que pertenece dest
 			dest_block = None
 			for b in new_states:
 				if dest in b:
@@ -161,8 +137,4 @@ if __name__ == "__main__":
 	min_dfa = minimize_dfa(dfa)
 	print("Estados minimizados:", len(min_dfa.new_states))
 
-	# Aquí, para el reporte, puedo explicar el proceso de partición:
-	# - Partición inicial: F y N.
-	# - Cómo se van refinando los bloques.
-	# Y comparar el número de estados antes y después.
 

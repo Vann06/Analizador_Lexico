@@ -18,13 +18,6 @@ from build_regex import build_java_identifier_tree_expanded
 
 
 def render_graphviz(root: Node, out_base: str = "java_identifier_tree") -> None:
-    """Dibuja el árbol de sintaxis en un PNG usando Graphviz.
-
-    - root:  nodo raíz del árbol que quiero dibujar
-    - out_base: nombre base de los archivos de salida (sin extensión)
-                por ejemplo "java_identifier_tree" genera:
-                java_identifier_tree.dot y java_identifier_tree.png
-    """
 
     dot = Digraph(format="png")
 

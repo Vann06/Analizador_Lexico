@@ -42,6 +42,7 @@ from build_regex import build_java_identifier_tree_expanded
 from render_tree import render_graphviz
 from dfa_build import build_dfa_from_tree, simulate_dfa
 from dfa_minimize import minimize_dfa
+from dfa_graphviz import render_dfa, render_minimized_dfa
 
 
 def opcion_1_dibujar_arbol() -> None:
@@ -79,6 +80,11 @@ def opcion_3_minimizar_afd() -> None:
     print("\nEstados originales:", len(dfa.states))
     min_dfa = minimize_dfa(dfa)
     print("Estados minimizados:", len(min_dfa.new_states))
+
+    # Además dibujo ambos autómatas en PNG para el reporte
+    print("\n[Generando imágenes del AFD original y minimizado...]")
+    render_dfa(dfa, "dfa_identifier")
+    render_minimized_dfa(min_dfa, "dfa_identifier_min")
 
 
 def mostrar_menu() -> None:
